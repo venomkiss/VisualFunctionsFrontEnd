@@ -1,0 +1,485 @@
+
+@-webkit-keyframes fade-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+@-moz-keyframes fade-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+@-ms-keyframes fade-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+@-o-keyframes fade-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+@keyframes fade-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+
+body {
+    font-family: sans-serif;
+    font: 13.3333px Arial;
+}
+
+input, select, textarea, label, button {
+    padding: 6px;
+}
+input.error {
+    border: 1px solid red;
+    background-color: #FFCCCC;
+}
+
+#pageContainer {
+    width: 100%;
+    height: 100%;
+}
+#leftContainer {
+    position: absolute;
+    width: calc(70% - 23px);
+    top: 0px;
+    bottom: 0px;
+    overflow: scroll;
+}
+#rightContainer {
+    position: absolute;
+    width: calc(30% - 23px);
+    right: 30px;
+}
+
+
+#pipelineEditorContainer {
+    font-size: 0.65em;
+    min-height: 2000px;
+    min-width: 2000px;
+    border: 1px solid gray;
+    background-color: #EEEEEE;
+}
+#editorControlsContainer {
+    display: flex;
+    font-size: 0.8em;
+    padding: 10px;
+    border: 1px solid gray;
+    margin-bottom: 10px;
+    width: 100%;
+}
+#componentEditorContainer {
+    font-size: 0.8em;
+    padding: 10px;
+    border: 1px solid gray;
+    margin-top: 10px;
+    position: relative;
+    width: 100%;
+    left: 0;
+}
+#componentConfigEditorContainer {
+    font-size: 0.8em;
+    padding: 10px;
+    border: 1px solid gray;
+    margin-top: 10px;
+    position: relative;
+    width: 100%;
+    left: 0;
+}
+#externalConfigEditorContainer {
+    font-size: 0.8em;
+    padding: 10px;
+    border: 1px solid gray;
+    margin-top: 10px;
+    display: table;
+    border-spacing: 10px;
+    position: relative;
+    width: 100%;
+    left: 0;
+}
+#pipelineEditorControlsContainer {
+    font-size: 0.65em;
+    padding: 10px;
+    border: 1px solid gray;
+    position: relative;
+    width: 100%;
+    right: 0;
+}
+#configMappingEditorContainer {
+    font-size: 0.8em;
+    padding: 10px;
+    border: 1px solid gray;
+    margin-top: 10px;
+    position: relative;
+    width: 100%;
+    left: 0;
+}
+
+#pipelineEditorOverlay {
+    position: fixed;
+    width : 100%;
+    height: 100%;
+    position: absolute;
+    opacity: 0.5;
+    visibility: hidden;
+    background-color: #777777;
+}
+
+#inputFormOuterContainer {
+    position: fixed;
+    width: calc(100% - 100px);
+    height: calc(100% - 100px);
+    left: 50px;
+    top: 50px;
+    background-color: #ffffff;
+    border: double #ff0081 thin;
+    box-shadow: 10px 10px 5px #888888;
+    visibility: hidden;
+    z-index: 5;
+}
+
+#inputFormOuterContainer .button-container {
+    padding: 10px;
+}
+
+#inputFormOuterContainer .inner-container {
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-bottom: 10px;
+}
+
+.component.selected {
+    z-index: 1;
+}
+.component.selected .item-name-section {
+    background-color: #c274e2;
+}
+.component.selected .item-name-section.error {
+    background-color: #ff0081;
+}
+
+.output {
+    right: 0;
+}
+
+.output.datatype-boolean, .input.datatype-boolean {
+    background-color: #d5ffd5;
+}
+.output.datatype-string, .input.datatype-string {
+    background-color: #fdfdb0;
+}
+.output.datatype-integer, .input.datatype-integer {
+    background-color: #fbcfa9;
+}
+.output.datatype-date, .input.datatype-date {
+    background-color: pink;
+}
+.output.datatype-period, .input.datatype-period {
+    background-color: plum;
+}
+.output.datatype-object, .input.datatype-object {
+    background-color: #d0d0d0;
+}
+.output.datatype-map, .input.datatype-map {
+    background-color: #a6bbf7;
+}
+.output.datatype-list, .input.datatype-list {
+    background-color: #a2a7cc;
+}
+.output.datatype-tuple, .input.datatype-tuple {
+    background-color: #dee3ff;
+}
+.output.datatype-generic, .input.datatype-generic {
+    background-color: white;
+}
+.output.datatype-any, .input.datatype-any {
+    background-color: #eeeeee;
+}
+
+.output:hover {
+    -webkit-animation: fade-pulse 1s infinite;
+    -moz-animation: fade-pulse 1s infinite;
+    -ms-animation: fade-pulse 1s infinite;
+    -o-animation: fade-pulse 1s infinite;
+    animation: fade-pulse 1s infinite;
+    cursor: ew-resize;
+}
+.input, .placeholder-input {
+    left: 0;
+}
+.input.error {
+    border: 1px solid red;
+}
+.input, .output, .placeholder-input {
+    position: absolute;
+    width: 72px;
+    background-color: #FFFFFF;
+}
+
+.item-name-section.error {
+    background-color: red;
+}
+.item-name-section {
+    font-weight: bold;
+    text-align: center;
+    background-color: #6dbbe8;
+    color: white;
+}
+
+.component-menu-button {
+    height: calc(50% - 2px);
+    width: 10px;
+    background-color: #000;
+    position: absolute;
+    left: calc(100% - 11px);
+    top: 0px;
+    margin: 1px;
+    vertical-align: middle;
+    text-align: center;
+    cursor: context-menu;
+    opacity: 0.5;
+}
+
+.function-input .item-name-section {
+    background-color: #ffa38a;
+    color: black;
+}
+.item-type-section {
+    font-style: italic;
+    text-align: center;
+    background-color: #cdf1ef;
+}
+.function-input .item-type-section {
+    background-color: rgba(255, 163, 138, 0.45);
+    color: black;
+}
+
+.output-value {
+    display: none;
+    height: 100%;
+    width: 10px;
+    box-sizing: border-box;
+    background-color: #f79a11;
+    border: 2px solid #f79a11;
+    right: 0px;
+    position: absolute;
+    top: 0px;
+    display: none;
+}
+.output-value.shown {
+    display: block;
+}
+.output-value.shown:hover {
+    background-color: #00FF00;
+    border: 2px solid #c274e2;
+}
+
+div.return-value-tooltip {
+    position: absolute;
+    box-shadow: 10px 10px 5px #888888;
+    border: 2px solid #c274e2;
+    background-color: #cccccc;
+    padding: 8px;
+    z-index: 1000;
+}
+
+.item-type-section, .item-name-section, .input, .output, .placeholder-input {
+    cursor: move;
+    border: 1px solid gray;
+    height: 12px;
+    padding: 6px 8px;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    box-sizing: content-box;
+}
+.item {
+    position: absolute;
+    width: 180px;
+}
+
+.connection {
+    position: absolute;
+    pointer-events: none;
+    fill: none;
+    stroke-width: 3px;
+    stroke: #30bb2a;
+}
+.connection.selected {
+    stroke: #c274e2;
+    z-index: 1;
+}
+.connection.error {
+    stroke: #ff0000;
+}
+.current-connection {
+    position: absolute;
+    pointer-events: none;
+    stroke: #FF0000;
+    z-index: 1;
+}
+.current-connection.can-connect {
+    stroke: #00FF00;
+}
+
+.connection.test-result-called {
+    stroke: #f79a11;
+}
+
+.test-result-skipped {
+    opacity: 0.1;
+}
+
+
+.config-editor-section {
+    width: 100%;
+    border: 1px solid gray;
+    margin-bottom: 10px;
+}
+.config-editor-section-header {
+    text-align: center;
+    padding: 6px;
+    background-color: #c274e2;
+}
+table.config-editor-property-set {
+    width: 100%;
+}
+tr.config-editor-property-set-header-row {
+    width: 100%;
+    text-align: left;
+    background-color: aliceblue;
+}
+th.config-editor-property-set-header {
+    padding: 6px;
+}
+tr.config-editor-property {
+    width: 100%;
+}
+tr.config-editor-property td {
+    padding: 3px;
+}
+/*.config-editor-label-cell, .config-editor-content-cell, .config-editor-additional-cell {
+    display: table-cell;
+}*/
+.config-editor-property-input-cell {
+    width: 100%;
+}
+.config-editor-property-additional-field {
+    text-align: center;
+}
+.config-editor-text-input,
+.config-editor-textarea-input,
+.config-editor-select,
+.config-editor-input-label,
+.config-editor-static-text {
+    width: 100%;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
+.invalid-config-editor-value {
+    border: 1px solid red;
+    background-color: #FFCCCC;
+}
+
+.controls-section {
+    padding: 6px;
+}
+.controls-add-new-button, .controls-add-new-select, .controls-saveButton-button {
+    margin-right: 10px;
+}
+.controls-function-name-input {
+    width: calc(100% - 16px);
+}
+
+.controls-section-header {
+    position: relative;
+    background-color: aliceblue;
+    padding: 6px;
+}
+.component-name-input {
+    width: calc(100% - 15px);
+    margin-top: 10px;
+}
+
+.controls-promote-beta-button {
+    margin-right: 15px;
+}
+
+.controls-promote-beta-version {
+    flex-grow: 1;
+}
+
+/* === Config Mapping Editor --------------------------------------------------------------------- */
+
+.config-mapping-editor-header {
+    text-align: center;
+    padding: 6px;
+    background-color: #c274e2;
+    margin-bottom: 10px;
+}
+.config-mapping-editor-body .key-section {
+    background-color: aliceblue;
+    margin-top: 10px;
+}
+.key-section .component-name-input, .key-section .config-key-input {
+    width: 40%;
+    margin-top: 0px;
+    box-sizing: border-box;
+}
+.key-section .config-mapping-remove-button {
+    width: 20%;
+    box-sizing: border-box;
+}
+.config-mapping-editor-key-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* === Data Input Editor -------------------------------------------------------------------------- */
+
+#inputFormOuterContainer {
+    font-weight: normal;
+}
+
+#inputFormOuterContainer input {
+    padding: 5px;
+}
+#inputFormOuterContainer select {
+    padding: 5px;
+}
+#inputFormOuterContainer button {
+    padding: 5px;
+}
+#inputFormOuterContainer table {
+    border: solid lightgray 1px;
+}
+#inputFormOuterContainer tr {
+    vertical-align: top;
+    background-color: #FAFAFA;
+}
+#inputFormOuterContainer thead tr {
+    background-color: #F0F0F0;
+}
+
+#inputFormOuterContainer .text-property-container {
+    width: 100%;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 5px;
+}
+
+#inputFormOuterContainer .text-property-value-container {
+    padding: 5px;
+}
+
+#inputFormOuterContainer .error {
+    border-color: red;
+    background-color: #FFD1D1;
+}

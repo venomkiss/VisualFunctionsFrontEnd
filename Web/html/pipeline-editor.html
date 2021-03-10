@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html ng-app="">
+<head>
+</head>
+<body>
+
+<div id="pageContainer">
+    <span id="leftContainer">
+        <div id="pipelineEditorContainer"></div>
+    </span>
+    <span id="rightContainer">
+        <div id="importExportContainer" style="padding: 16px">
+            <label style="border: 1px solid #cccccc; cursor: pointer">
+                <input id="import-control" type="file" accept="application/json" style="display: none"/>
+                Import
+            </label>
+        </div>
+        <div id="pipelineEditorControlsContainer"></div>
+        <div id="componentEditorContainer"></div>
+        <div id="componentConfigEditorContainer"></div>
+        <div id="configMappingEditorContainer"></div>
+    </span>
+    <div id="pipelineEditorOverlay"></div>
+    <div id="inputFormOuterContainer"></div>
+</div>
+
+<script src="https://d3js.org/d3.v4.js"></script>
+
+<script id="loadingscript" type="text/javascript">
+
+    // === TEST Pipelines -------------------------------------------------------------------------
+
+    var emptyPipeline = {
+        def: {
+            "name": "Patch Template",
+            "type": "function",
+            "root": "Patch Selector",
+            "inputs": {"rentAccountIn": {"connections": []}},
+            "components": [],
+            "connections": []
+        },
+        positions: {
+            "rentAccountIn": { "x":50,"y":50 }
+        }
+    };
+    var pipelineToShow = emptyPipeline;
+
+    var testServiceUrl = "http://localhost:8192/pipeline/run";
+
+    // === ------------------------------------------------------------------------------------------
+
+    var start = function() {
+
+        var coreCompositePipelineDefinitions = {
+            "composite/Conditional-ConstructLabelIfAllTrue": {
+                "pipelineDefinition": {
+                    "name": "Construct Label If All True",
+                    "type": "function",
+                    "root": "ConditionalValue",
+                    "inputs": {
+                        "predicate": {"connections": [{"instanceName": "And Predicate", "connector": "predicate"}]},
+                        "valueProvider": {"connections": [{"instanceName": "String Appender", "connector": "valueProvider"}]}
+                    },
+                    "configMapping": {"separator": [{"forComponent": "String Appender", "configKey": "separator"}]},
+                    "components": [{"instanceName": "And Predicate", "componentType": "core/And"}, {
+                        "instanceName": "String Appender",
+                        "componentType": "core/StringAppender"
+                    }, {"instanceName": "ConditionalValue", "componentType": "core/ConditionalValue"}],
+                    "connections": [{"from": "And Predicate", "to": "ConditionalValue", "connector": "predicate"}, {
+                        "from": "String Appender",
+                        "to": "ConditionalValue",
+                        "connector": "valueProvider"
+                    }]
+                },
+                "metaData": {
+                    "name": "If all inputs are true concatenate values",
+                    "inputs": {
+                        "predicate": {"display": "Inputs to check", "cardinality": "multiple", "dataType": "boolean"},
+                        "valueProvider": {"display": "Values to concatenate", "cardinality": "multiple", "dataType": "text"}
+                    },
+                    "config": {"separator": {"display": "Separator", "type": "text"}},
+                    "output": {"dataType": "text"}
+                }
+            },
+            "composite/Predicate-ObjectPropertyValueCompare": {
+                "pipelineDefinition": {
+                    "name": "Predicate-ObjectPropertyValueCompare",
+                    "type": "predicate",
+                    "root": "BiPredicate",
+                    "inputs": {"objectProvider": {"connections": [{"instanceName": "Get Property Value", "connector": "objectProvider"}]}},
+                    "configMapping": {
+                        "propertyName": [{"forComponent": "Get Property Value", "configKey": "propertyName"}],
+                        "staticValue": [{"forComponent": "Static Value", "configKey": "value"}],
+                        "matchType": [{"forComponent": "BiPredicate", "configKey": "predicate"}],
+                        "valueType": [{"forComponent": "Static Value", "configKey": "dataType"}, {
+                            "forComponent": "Get Property Value",
+                            "configKey": "propertyType"
+                        }]
+                    },
+                    "components": [{
+                        "instanceName": "Get Property Value",
+                        "componentType": "composite/GetProperty-StaticPropertyName"
+                    }, {"instanceName": "Static Value", "componentType": "core/StaticValueProvider"}, {
+                        "instanceName": "BiPredicate",
+                        "componentType": "core/BiPredicate"
+                    }],
+                    "connections": [{"from": "Get Property Value", "to": "BiPredicate", "connector": "firstInput"}, {
+                        "from": "Static Value",
+                        "to": "BiPredicate",
+                        "connector": "secondInput"
+                    }]
+                },
+                "metaData": {
+                    "name": "If named value matches static value return true",
+                    "inputs": {"objectProvider": {"display": "Source object", "cardinality": "single", "dataType": "object"}},
+                    "config": {
+                        "propertyName": {"display": "Source object value name", "type": "text"},
+                        "staticValue": {"display": "Static value", "type": "text"},
+                        "matchType": {
+                            "display": "Comparison type",
+                            "type": "select",
+                            "availableValues": ["String:IS_EQUAL_IGNORE_CASE", "String:START_WITH", "String:END_WITH", "String:CONTAINED_IN_IGNORE_CASE", "String:CONTAINED_BY_IGNORE_CASE", "Integer:IS_EQUALS_OR_OVER", "Integer:IS_EQUALS_OR_UNDER", "Integer:IS_UNDER", "Integer:IS_OVER", "Date:IS_BEFORE", "Date:IS_AFTER_OR_EQUAL", "Date:IS_AFTER", "Date:IS_EQUAL"]
+                        },
+                        "valueType": {"display": "Static Value Type", "type": "select", "availableValues": ["String", "Integer", "Period"]}
+                    },
+                    "output": {"dataType": "boolean"}
+                }
+            },
+            "composite/Predicate-ObjectPropertyValueInList": {
+                "pipelineDefinition": {
+                    "name": "Predicate-ObjectPropertyValueInList",
+                    "type": "predicate",
+                    "root": "String In List Predicate",
+                    "inputs": {"objectProvider": {"connections": [{"instanceName": "Get Property Value", "connector": "objectProvider"}]}},
+                    "configMapping": {
+                        "propertyName": [{"forComponent": "Get Property Value", "configKey": "propertyName"}],
+                        "listValues": [{"forComponent": "List", "configKey": "value"}],
+                        "matchType": [{"forComponent": "String In List Predicate", "configKey": "predicate"}]
+                    },
+                    "components": [{
+                        "instanceName": "Get Property Value",
+                        "componentType": "composite/GetProperty-StaticPropertyName",
+                        "config": {"propertyType": "String"}
+                    }, {
+                        "instanceName": "List",
+                        "componentType": "core/StaticValueProvider",
+                        "config": {"dataType": "[String]"}
+                    }, {"instanceName": "String In List Predicate", "componentType": "core/ValueInList"}],
+                    "connections": [{"from": "Get Property Value", "to": "String In List Predicate", "connector": "valueProvider"}, {
+                        "from": "List",
+                        "to": "String In List Predicate",
+                        "connector": "listProvider"
+                    }]
+                },
+                "metaData": {
+                    "name": "If named value is in list return True",
+                    "inputs": {"objectProvider": {"display": "Source object", "cardinality": "single", "dataType": "object"}},
+                    "config": {
+                        "propertyName": {"display": "Source object value name", "type": "text"},
+                        "listValues": {"display": "List of values", "type": "[text]"},
+                        "matchType": {
+                            "display": "Comparison type",
+                            "type": "select",
+                            "availableValues": ["String:IS_EQUAL_IGNORE_CASE", "String:START_WITH", "String:END_WITH", "String:CONTAINED_IN_IGNORE_CASE", "String:CONTAINED_BY_IGNORE_CASE", "Integer:IS_EQUALS_OR_OVER", "Integer:IS_EQUALS_OR_UNDER", "Integer:IS_UNDER", "Integer:IS_OVER", "Date:IS_BEFORE", "Date:IS_AFTER_OR_EQUAL", "Date:IS_AFTER", "Date:IS_EQUAL"]
+                        }
+                    },
+                    "output": {"dataType": "boolean"}
+                }
+            },
+            "composite/CreateTuple-StaticKeyAndValue": {
+                "pipelineDefinition": {
+                    "name": "CreateTuple-StaticKeyAndValue",
+                    "type": "function",
+                    "root": "Static Tuple",
+                    "inputs": {},
+                    "components": [{"instanceName": "Static Tuple", "componentType": "core/ToTuple"}, {
+                        "instanceName": "Tuple Key",
+                        "componentType": "core/StaticValueProvider",
+                        "config": {"dataType": "String"}
+                    }, {"instanceName": "Tuple Value", "componentType": "core/StaticValueProvider", "config": {"dataType": "String"}}],
+                    "connections": [{"from": "Tuple Key", "to": "Static Tuple", "connector": "keyProvider"}, {
+                        "from": "Tuple Value",
+                        "to": "Static Tuple",
+                        "connector": "valueProvider"
+                    }],
+                    "configMapping": {
+                        "tupleKey": [{"forComponent": "Tuple Key", "configKey": "value"}],
+                        "tupleValue": [{"forComponent": "Tuple Value", "configKey": "value"}]
+                    }
+                },
+                "metaData": {
+                    "name": "Create a Tuple for a static key and value",
+                    "inputs": {},
+                    "config": {
+                        "tupleKey": {"display": "Key for the tuple", "type": "text"},
+                        "tupleValue": {"display": "Value for the tuple", "type": "text"}
+                    },
+                    "output": {"dataType": "object"}
+                }
+            },
+            "composite/GetProperty-StaticPropertyName": {
+                "pipelineDefinition": {
+                    "name": "GetProperty-StaticPropertyName",
+                    "type": "function",
+                    "root": "Get Property",
+                    "inputs": {"objectProvider": {"connections": [{"instanceName": "Get Property", "connector": "objectProvider"}]}},
+                    "configMapping": {
+                        "propertyName": [{"forComponent": "Property Name", "configKey": "value"}],
+                        "propertyType": [{"forComponent": "Get Property", "configKey": "dataType"}]
+                    },
+                    "components": [{
+                        "instanceName": "Property Name",
+                        "componentType": "core/StaticValueProvider",
+                        "config": {"dataType": "String"}
+                    }, {"instanceName": "Get Property", "componentType": "core/GetProperty"}],
+                    "connections": [{"from": "Property Name", "to": "Get Property", "connector": "propertyNameProvider"}]
+                },
+                "metaData": {
+                    "name": "Get named value from object",
+                    "inputs": {"objectProvider": {"display": "Source object", "cardinality": "single", "dataType": "object"}},
+                    "config": {"propertyName": {"display": "Source object value name", "type": "text"}},
+                    "output": {"dataType": "value"}
+                }
+            },
+            "composite/Predicate-ObjectPropertyHasValue": {
+                "pipelineDefinition": {
+                    "name": "Predicate-ObjectPropertyHasValue",
+                    "type": "predicate",
+                    "root": "Has Value",
+                    "inputs": {"objectProvider": {"connections": [{"instanceName": "Get Property Value", "connector": "objectProvider"}]}},
+                    "configMapping": {
+                        "propertyName": [{"forComponent": "Get Property Value", "configKey": "propertyName"}],
+                        "dataType": [{"forComponent": "Get Property Value", "configKey": "propertyType"}]
+                    },
+                    "components": [{
+                        "instanceName": "Get Property Value",
+                        "componentType": "composite/GetProperty-StaticPropertyName"
+                    }, {"instanceName": "Has Value", "componentType": "core/HasValue"}],
+                    "connections": [{"from": "Get Property Value", "to": "Has Value", "connector": "valueProvider"}]
+                },
+                "metaData": {
+                    "name": "If named value exists then return True",
+                    "inputs": {"objectProvider": {"display": "Source object", "cardinality": "single", "dataType": "object"}},
+                    "config": {"propertyName": {"display": "Source object value name", "type": "text"}},
+                    "output": {"dataType": "boolean"}
+                }
+            },
+            "composite/CreateTuple-StaticKeyName": {
+                "pipelineDefinition": {
+                    "name": "CreateTuple-StaticKeyName",
+                    "type": "function",
+                    "root": "Tuple",
+                    "inputs": {"valueInput": {"connections": [{"instanceName": "Tuple", "connector": "valueProvider"}]}},
+                    "components": [{
+                        "instanceName": "KeyProvider",
+                        "componentType": "core/StaticValueProvider",
+                        "config": {"dataType": "String"}
+                    }, {"instanceName": "Tuple", "componentType": "core/ToTuple"}],
+                    "connections": [{"from": "KeyProvider", "to": "Tuple", "connector": "keyProvider"}],
+                    "configMapping": {"key": [{"forComponent": "KeyProvider", "configKey": "value"}]}
+                },
+                "metaData": {
+                    "name": "Create a Tuple with a Static Key",
+                    "inputs": {"valueInput": {"display": "Value", "cardinality": "single", "dataType": "object"}},
+                    "config": {"key": {"display": "Key value", "type": "text"}},
+                    "output": {"dataType": "object"}
+                }
+            },
+            "composite/Conditional-ObjectPropertyValueInMap": {
+                "pipelineDefinition": {
+                    "name": "Conditional-ObjectPropertyValueInMap",
+                    "type": "function",
+                    "root": "Conditional Value",
+                    "inputs": {"objectProvider": {"connections": [{"instanceName": "Get Property", "connector": "objectProvider"}]}},
+                    "configMapping": {
+                        "mapValues": [{"forComponent": "Map", "configKey": "value"}],
+                        "propertyName": [{"forComponent": "Get Property", "configKey": "propertyName"}]
+                    },
+                    "components": [{
+                        "instanceName": "Conditional Value",
+                        "componentType": "core/ConditionalValue"
+                    }, {"instanceName": "Get Value For Key", "componentType": "core/GetValueForKey"}, {
+                        "instanceName": "Value in List",
+                        "componentType": "core/ValueInList",
+                        "config": {"predicate": "String:IS_EQUAL_IGNORE_CASE"}
+                    }, {"instanceName": "Get Map Keys", "componentType": "core/GetKeys"}, {
+                        "instanceName": "Map",
+                        "componentType": "core/StaticValueProvider",
+                        "config": {"dataType": "{String,String}"}
+                    }, {
+                        "instanceName": "Get Property",
+                        "componentType": "composite/GetProperty-StaticPropertyName",
+                        "config": {"propertyType": "String"}
+                    }],
+                    "connections": [{"type": "value", "from": "Map", "to": "Get Map Keys", "connector": "objectProvider"}, {
+                        "type": "value",
+                        "from": "Map",
+                        "to": "Get Value For Key",
+                        "connector": "objectProvider"
+                    }, {"type": "value", "from": "Get Map Keys", "to": "Value in List", "connector": "listProvider"}, {
+                        "type": "value",
+                        "from": "Get Property",
+                        "to": "Get Value For Key",
+                        "connector": "keyProvider"
+                    }, {"type": "value", "from": "Get Property", "to": "Value in List", "connector": "valueProvider"}, {
+                        "type": "value",
+                        "from": "Value in List",
+                        "to": "Conditional Value",
+                        "connector": "predicate"
+                    }, {"type": "value", "from": "Get Value For Key", "to": "Conditional Value", "connector": "valueProvider"}]
+                },
+                "metaData": {
+                    "name": "If Named Value found in Lookup Table return Matched Value",
+                    "inputs": {"objectProvider": {"display": "Source object", "cardinality": "single", "dataType": "object"}},
+                    "config": {
+                        "mapValues": {"display": "Lookup Table", "type": "map"},
+                        "propertyName": {"display": "Source object value name", "type": "text"}
+                    },
+                    "output": {"dataType": "value"}
+                }
+            },
+            "composite/Conditional-StaticStringIfObjectValueInList": {
+                "pipelineDefinition": {
+                    "name": "Conditional-StaticStringIfObjectValueInList",
+                    "type": "function",
+                    "root": "ConditionalValue",
+                    "inputs": {"objectProvider": {"connections": [{"instanceName": "Predicate", "connector": "objectProvider"}]}},
+                    "configMapping": {
+                        "propertyName": [{"forComponent": "Predicate", "configKey": "propertyName"}],
+                        "listValues": [{"forComponent": "Predicate", "configKey": "listValues"}],
+                        "matchType": [{"forComponent": "Predicate", "configKey": "matchType"}],
+                        "returningValue": [{"forComponent": "Returning Value", "configKey": "value"}]
+                    },
+                    "components": [{
+                        "instanceName": "Predicate",
+                        "componentType": "composite/Predicate-ObjectPropertyValueInList"
+                    }, {
+                        "instanceName": "Returning Value",
+                        "componentType": "core/StaticValueProvider",
+                        "config": {"dataType": "String"}
+                    }, {"instanceName": "ConditionalValue", "componentType": "core/ConditionalValue"}],
+                    "connections": [{"from": "Predicate", "to": "ConditionalValue", "connector": "predicate"}, {
+                        "from": "Returning Value",
+                        "to": "ConditionalValue",
+                        "connector": "valueProvider"
+                    }]
+                },
+                "metaData": {
+                    "name": "If named value in list return static string",
+                    "inputs": {"objectProvider": {"display": "Source Object", "cardinality": "single", "dataType": "object"}},
+                    "config": {
+                        "propertyName": {"display": "Source object value name", "type": "text"},
+                        "listValues": {"display": "List of Values", "type": "[text]"},
+                        "matchType": {
+                            "display": "Comparison type",
+                            "type": "select",
+                            "availableValues": ["String:IS_EQUAL_IGNORE_CASE", "String:START_WITH", "String:END_WITH", "String:CONTAINED_IN_IGNORE_CASE", "String:CONTAINED_BY_IGNORE_CASE", "Integer:IS_EQUALS_OR_OVER", "Integer:IS_EQUALS_OR_UNDER", "Integer:IS_UNDER", "Integer:IS_OVER", "Date:IS_BEFORE", "Date:IS_AFTER_OR_EQUAL", "Date:IS_AFTER", "Date:IS_EQUAL"]
+                        },
+                        "returningValue": {"display": "Static String", "type": "text"}
+                    },
+                    "output": {"dataType": "text"}
+                }
+            },
+            "composite/CreateTuple-NamedObjectValueStaticKey": {
+                "pipelineDefinition": {
+                    "name": "CreateTuple-NamedObjectValueStaticKey",
+                    "type": "function",
+                    "root": "Tuple",
+                    "inputs": {"objectProvider": {"connections": [{"instanceName": "Named Object Value Provider", "connector": "objectProvider"}]}},
+                    "components": [{
+                        "instanceName": "Named Object Value Provider",
+                        "componentType": "composite/GetProperty-StaticPropertyName",
+                        "config": {}
+                    }, {"instanceName": "Tuple", "componentType": "composite/CreateTuple-StaticKeyName", "config": {}}],
+                    "connections": [{"from": "Named Object Value Provider", "to": "Tuple", "connector": "valueInput"}],
+                    "configMapping": {
+                        "inputDataType": [{"forComponent": "Named Object Value Provider", "configKey": "propertyType"}],
+                        "inputValueName": [{"forComponent": "Named Object Value Provider", "configKey": "propertyName"}],
+                        "tupleKeyValue": [{"forComponent": "Tuple", "configKey": "key"}]
+                    }
+                },
+                "metaData": {
+                    "name": "Create a Tuple for Named value",
+                    "inputs": {"objectProvider": {"display": "Source object", "cardinality": "single", "dataType": "object"}},
+                    "config": {
+                        "inputDataType": {
+                            "display": "Source object data type",
+                            "type": "select",
+                            "availableValues": ["String", "Integer", "Period"]
+                        },
+                        "inputValueName": {"display": "Source object value name", "type": "text"},
+                        "tupleKeyValue": {"display": "key value for tuple", "type": "text"}
+                    },
+                    "output": {"dataType": "object"}
+                }
+            },
+            "composite/Conditional-AppendObjectPropertyIfOtherObjectPropertyValueInList": {
+                "pipelineDefinition": {
+                    "name": "Conditional-AppendObjectPropertyIfOtherObjectPropertyValueInList",
+                    "type": "function",
+                    "root": "Conditional Value",
+                    "inputs": {
+                        "objectProvider": {
+                            "connections": [{
+                                "instanceName": "Get Property",
+                                "connector": "objectProvider"
+                            }, {"instanceName": "Is a registered value property", "connector": "objectProvider"}]
+                        }
+                    },
+                    "configMapping": {
+                        "propertyName": [{"forComponent": "Get Property", "configKey": "propertyName"}],
+                        "propertyNameValueInList": [{"forComponent": "Is a registered value property", "configKey": "propertyName"}],
+                        "appendValue": [{"forComponent": "Append Static Value Provider", "configKey": "value"}],
+                        "listValues": [{"forComponent": "Is a registered value property", "configKey": "listValues"}]
+                    },
+                    "components": [{
+                        "instanceName": "Get Property",
+                        "componentType": "composite/GetProperty-StaticPropertyName",
+                        "config": {"propertyType": "String"}
+                    }, {
+                        "instanceName": "Is a registered value property",
+                        "componentType": "composite/Predicate-ObjectPropertyValueInList",
+                        "config": {"matchType": "String:IS_EQUAL_IGNORE_CASE"}
+                    }, {
+                        "instanceName": "Append Static Value Provider",
+                        "componentType": "core/StaticValueProvider",
+                        "config": {"dataType": "String"}
+                    }, {
+                        "instanceName": "String Appender",
+                        "componentType": "core/StringAppender",
+                        "config": {"separator": ""}
+                    }, {"instanceName": "Conditional Value", "componentType": "core/ConditionalValue"}],
+                    "connections": [{
+                        "from": "Is a registered value property",
+                        "to": "Conditional Value",
+                        "connector": "predicate"
+                    }, {"from": "String Appender", "to": "Conditional Value", "connector": "valueProvider"}, {
+                        "from": "Get Property",
+                        "to": "String Appender",
+                        "connector": "valueProvider"
+                    }, {"from": "Append Static Value Provider", "to": "String Appender", "connector": "valueProvider"}]
+                },
+                "metaData": {
+                    "name": "Append named value to input if other named value is in list",
+                    "inputs": {"objectProvider": {"display": "Source object", "cardinality": "single", "dataType": "object"}},
+                    "config": {
+                        "propertyName": {"display": "Source object value name to Append", "type": "text"},
+                        "propertyNameValueInList": {"display": "Source object value name to Compare", "type": "text"},
+                        "appendValue": {"display": "Value to append", "type": "text"},
+                        "listValues": {"display": "List of values", "type": "[text]"}
+                    },
+                    "output": {"dataType": "text"}
+                }
+            }
+        };
+
+        var compositeMetaData = {
+
+            "composite/Conditional-ConstructLabelIfAllTrue": {
+                name: "If all inputs are true concatenate values",
+                inputs: {
+                    "predicate": {display: "Inputs to check"},
+                    "valueProvider": {display: "Values to concatenate"}
+                },
+                config: {
+                    separator: {display: "Separator"}
+                }
+            },
+            "composite/Conditional-ObjectPropertyValueInMap": {
+                name: "If Named Value found in Lookup Table return Matched Value",
+                inputs: {
+                    "objectProvider": {display: "Source object"}
+                },
+                config: {
+                    mapValues: {display: "Lookup Table"},
+                    propertyName: {display: "Source object value name"}
+                }
+            },
+            "composite/Conditional-StaticStringIfObjectValueInList": {
+                name: "If named value in list return static string",
+                inputs: {
+                    "objectProvider": {display: "Source Object"}
+                },
+                config: {
+                    propertyName: {display: "Source object value name"},
+                    listValues: {display: "List of Values"},
+                    matchType: {display: "Comparison type"},
+                    returningValue: {display: "Static String"}
+                }
+            },
+            "composite/GetProperty-StaticPropertyName": {
+                name: "Get named value from object",
+                inputs: {
+                    "objectProvider": {display:"Source object"}
+                },
+                config: {
+                    "propertyName": {display: "Source object value name"},
+                    "propertyType": {display: "Value Data Type"}
+                }
+            },
+            "composite/Predicate-ObjectPropertyValueCompare": {
+                name: "If named value matches static value return true",
+                inputs: {
+                    objectProvider: {display: "Source object"}
+                },
+                config: {
+                    propertyName: {display: "Source object value name"},
+                    staticValue: {display: "Static value"},
+                    matchType: {display: "Comparison type"},
+                    valueType: {display: "Static Value Type"}
+                }
+            },
+            "composite/Predicate-ObjectPropertyValueInList": {
+                name: "If named value is in list return True",
+                inputs: {
+                    "objectProvider": {display: "Source object"}
+                },
+                config: {
+                    propertyName: {display: "Source object value name"},
+                    listValues: {display: "List of values"},
+                    matchType: {display: "Comparison type"}
+                }
+            },
+            "composite/Conditional-AppendObjectPropertyIfOtherObjectPropertyValueInList": {
+                name: "Append named value to input if other named value is in list",
+                inputs: {
+                    "objectProvider": {display: "Source object"}
+                },
+                config: {
+                    propertyName: {display: "Source object value name to Append"},
+                    propertyNameValueInList: {display: "Source object value name to Compare"},
+                    appendValue: {display: "Value to append"},
+                    listValues: {display: "List of values"}
+                }
+            },
+            "composite/Predicate-ObjectPropertyHasValue" : {
+                name: "If named value exists then return True",
+                inputs: {
+                    "objectProvider": {display: "Source object"}
+                },
+                config: {
+                    propertyName: {display: "Source object value name"}
+                }
+            },
+            "composite/CreateTuple-StaticKeyName" : {
+                name: "Create a Tuple with a Static Key",
+                inputs: {
+                    "valueInput": {display: "Value"}
+                },
+                config: {
+                    key: {display: "Key value"}
+                }
+            },
+            "composite/CreateTuple-NamedObjectValueStaticKey" : {
+                name: "Create a Tuple for Named value",
+                inputs: {
+                    "objectProvider": { display: "Source object" }
+                },
+                config: {
+                    inputDataType: { display: "Source object data type" },
+                    inputValueName: { display: "Source object value name" },
+                    tupleKeyValue: { display: "key value for tuple" }
+                }
+            },
+            "composite/CreateTuple-StaticKeyAndValue" : {
+                name: "Create a Tuple for a static key and value",
+                config: {
+                    tupleKey: { display: "Key for the tuple" },
+                    tupleValue: { display: "Value for the tuple" }
+                }
+            }
+        };
+
+        // === Composites -------------------------------------------------------------------------------
+
+        var mergedDefinitionsAndMetaData = d3.map(coreCompositePipelineDefinitions).entries().reduce(function(map, entry){
+            map[entry.key] = deepmerge({}, entry.value);
+            map[entry.key].metaData = compositeMetaData[entry.key];
+            return map;
+        }, {});
+
+        var DatatypeService = com.mobysoft.common.createDatatypeService( {
+            "Parse Date": d3.timeParse("%Y-%m-%d")
+        } );
+        var integratedPipelineEditor =
+            com.mobysoft.pipeline.createIntegratedPipelineEditor( d3, DatatypeService, mergedDefinitionsAndMetaData );
+
+        integratedPipelineEditor.registerListener( integratedPipelineEditor.LISTENER_ACTIONS.SAVE, function( state ) {
+            console.log( state );
+//            console.log( integratedPipelineEditor.pipelineEditor.getCurrentState().extractTypeDefinition() );
+            console.log("");
+            console.log( JSON.stringify(integratedPipelineEditor.pipelineEditor.getComponentPositions()) );
+            console.log( JSON.stringify({pipelineDefinition:state}) );
+        } );
+        integratedPipelineEditor.registerListener(
+            integratedPipelineEditor.LISTENER_ACTIONS.SAVE_WITH_FATAL_ERRORS,
+            function( status ) {
+                if ( status.hasErrorsOfType( integratedPipelineEditor.ErrorType.DUPLICATE_COMPONENT_NAME ) ) {
+                    var names = integratedPipelineEditor.Utils.QuantifyDuplicateNamesFromStatus(status);
+                    alert("Pipeline contains one or more components with the same name : \r\r" +
+                        names.map( e => e.key + " ( x" + e.value + " )" ).join(','));
+                }
+            } );
+
+        integratedPipelineEditor.registerTestService( function( pipelineState, inputData, callback ) {
+
+            d3.request( testServiceUrl )
+                .header("Content-Type", "application/json")
+                .post( JSON.stringify( { pipelineDef: { pipelineDefinition : pipelineState.get() }, inputs: inputData } ) )
+                .on('load',function( xhr ) {
+                    var response = JSON.parse(xhr.response);
+
+                    console.log("got response", response);
+
+                    callback( response );
+                })
+                .on('error', function( error ) {
+                    alert("Having a problem talking to the pipeline runner using URL '" + testServiceUrl + "'");
+                });
+        } );
+
+        integratedPipelineEditor.pipelineEditor.setBasePipeline( pipelineToShow.def, pipelineToShow.positions );
+
+        d3.select('#import-control').on( "change", function() {
+            var file = d3.event.target.files[0];
+            if ( file ) {
+                var reader = new FileReader();
+                reader.onloadend = function(evt) {
+                    var obj = JSON.parse(evt.target.result);
+                    if ( obj.pipelineDefinition ) {
+                        obj = obj.pipelineDefinition
+                    }
+                    integratedPipelineEditor.pipelineEditor.setBasePipeline( obj, null );
+                };
+                reader.readAsText(file);
+            }
+        } );
+
+    };
+
+    (function(){
+
+        var basePath = function( type, filename ) {
+            return "../" + type + "/" + filename;
+        };
+
+        var jsFiles = [
+            [ "expression-evaluation.js" ],
+            [ "datatype-service.js" ],
+            [ "data-editing.js" ],
+            [ "deepmerge.js" ],
+            [ "pipeline-state.js" ],
+            [ "pipeline-editor.js" ],
+            [ "config-editor.js" ],
+            [ "config-mapping-editor.js" ],
+            [ "component-editor.js" ],
+            [ "pipeline-editor-controls.js" ],
+            [ "integrated-pipeline-editor.js" ]
+        ];
+        var cssFiles = [
+            [ "integrated-pipeline-editor.css" ],
+            [ "standalone-pipeline-editor.css" ]
+        ];
+        var loaded = jsFiles.length + cssFiles.length;
+
+        var headElement = document.getElementsByTagName('head')[0];
+
+        cssFiles.forEach( function(f) {
+            var newLinkElement = document.createElement("link");
+            newLinkElement.setAttribute('type','text/css');
+            newLinkElement.setAttribute('rel','stylesheet');
+            newLinkElement.setAttribute('href',basePath("css",f[0]));
+            headElement.appendChild( newLinkElement );
+
+            newLinkElement.onload= function() { if ( --loaded === 0 ) { start(); } };
+        } );
+
+        jsFiles.forEach( function(f) {
+            var newScriptElement = document.createElement("script");
+            newScriptElement.setAttribute('type','text/javascript');
+            newScriptElement.setAttribute('src',basePath("js",f[0]));
+
+            headElement.appendChild( newScriptElement );
+
+            newScriptElement.onload= function() { if ( --loaded === 0 ) { start(); } };
+        } );
+    }());
+
+</script>
+
+</body>
+</html>

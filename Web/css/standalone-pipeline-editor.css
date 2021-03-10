@@ -1,0 +1,28 @@
+
+body {
+    margin: 0px;
+}
+
+#leftContainer {
+    margin: 6px;
+    width: calc( 70% - 9px );
+}
+
+#rightContainer {
+    margin: 6px;
+    width: calc( 30% - 9px );
+    right: 0px;
+}
+
+#pipelineEditorControlsContainer {
+    width: calc(100% - 22px);
+}
+#componentEditorContainer {
+    width: calc(100% - 22px);
+}
+#componentConfigEditorContainer {
+    width: calc(100% - 22px);
+}
+#configMappingEditorContainer {
+    width: calc(100% - 22px);
+}
